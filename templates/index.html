@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Araba Veri Arama</title>
+    <style>
+        body { font-family: sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
+        .search-box { display: flex; gap: 10px; margin-bottom: 20px; }
+        input { flex: 1; padding: 10px; font-size: 16px; }
+        button { padding: 10px 20px; cursor: pointer; background: #007bff; color: white; border: none; font-size: 16px; }
+        button:disabled { background: #ccc; }
+        
+        
+        .result-item { border: 1px solid #ddd; padding: 10px; margin-bottom: 10px; cursor: pointer; transition: background 0.2s; }
+        .result-item:hover { background-color: #f0f8ff; border-color: #007bff; }
+        
+        
+        #detay-alani { margin-top: 20px; border: 2px solid #333; padding: 20px; display: none; background: #fffbe6; }
+        .loading { color: #666; font-style: italic; }
+        img.car-img { max-width: 100%; height: auto; border-radius: 5px; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+    <h1>Araç Arama Motoru</h1>
+
+    <div class="search-box">
+        <input type="text" id="modelInput" placeholder="Model girin: ">
+        <button onclick="aramaYap()" id="searchBtn">Ara</button>
+    </div>
+
+    <div id="loading" class="loading" style="display: none;">Veriler taranıyor, lütfen bekleyin...</div>
+    
+    <div id="sonuc-listesi"></div>
+
+    <div id="detay-alani">
+        <h2 id="detay-baslik"></h2>
+        <div id="detay-icerik"></div>
+    </div>
+
+    <script src="/static/main.js"></script>
+
+</body>
+</html>
