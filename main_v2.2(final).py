@@ -198,7 +198,7 @@ def AutoSearch(car_info):
             except TimeoutException:
                 search_box = driver.find_element(By.XPATH, '//input')
             
-            search_box.clear()asdasd
+            search_box.clear()
             search_box.send_keys(search_term)
 
             
