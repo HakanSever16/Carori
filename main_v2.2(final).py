@@ -8,8 +8,6 @@ import re
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 
-
-
 def _normalize(text: str) -> str:
     return (text or "").strip().lower()
 
@@ -46,6 +44,23 @@ def _translate_drive_terms(text: str):
         if k in low and v not in found:
             found.append(v)
     return found
+
+# --- EKLENEN KISIM: Yakıt Türü Çevirisi ---
+def _translate_fuel_type(text: str) -> str:
+    if not text:
+        return None
+    low = text.lower()
+    
+    # Öncelik sırasına göre kontrol (Örn: Hybrid hem benzin hem elektrik içerir)
+    if 'electric' in low: return 'Elektrik'
+    if 'hybrid' in low or 'phev' in low: return 'Hibrit'
+    if 'lpg' in low: return 'LPG'
+    if 'cng' in low: return 'CNG'
+    if 'diesel' in low: return 'Dizel'
+    if 'petrol' in low or 'gasoline' in low: return 'Benzin'
+    
+    return None
+# ------------------------------------------
 
 def _remove_english_drive_terms(text: str):
     terms_to_remove = [
@@ -377,10 +392,14 @@ def arac_detay_endpoint():
         
         # 4. Çekiş Türünü Belirle ve Çevir
         drive_terms = _translate_drive_terms(full_table_text)
+        
+        # 5. Yakıt Türünü Belirle (EKLENEN ÇAĞRI)
+        fuel_type_tr = _translate_fuel_type(full_table_text)
 
         # Sonuç Yapısını Hazırla
         response_data = {
             "url": car_url,
+            "yakit_turu": fuel_type_tr, # Yeni Alan
             "fuel_consumption_l_per_100km": {
                 "Ortalama": fuel_consumption.get('combined'),
                 "Şehir İçi": fuel_consumption.get('city'),
