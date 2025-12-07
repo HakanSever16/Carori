@@ -45,15 +45,15 @@ def _translate_drive_terms(text: str):
             found.append(v)
     return found
 
-# --- EKLENEN KISIM: Yakıt Türü Çevirisi ---
+# --- GÜNCELLENEN KISIM: Yakıt Türü Çevirisi (Sıralama Düzeltildi) ---
 def _translate_fuel_type(text: str) -> str:
     if not text:
         return None
     low = text.lower()
     
-    # Öncelik sırasına göre kontrol (Örn: Hybrid hem benzin hem elektrik içerir)
-    if 'electric' in low: return 'Elektrik'
+    # DÜZELTME: 'Hybrid' kontrolü 'Electric'ten ÖNCE yapılmalı.
     if 'hybrid' in low or 'phev' in low: return 'Hibrit'
+    if 'electric' in low: return 'Elektrik'
     if 'lpg' in low: return 'LPG'
     if 'cng' in low: return 'CNG'
     if 'diesel' in low: return 'Dizel'
@@ -199,13 +199,11 @@ def AutoSearch(car_info):
         try:
             search_term = model.strip()
             
-            
             driver.get(base_url)
             try:
                 WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//div[@id='google_vignette']/div/div[1]"))).click()
                 time.sleep(0.3)
             except Exception: pass
-            
             
             try:
                 search_box_xpath = '//input[@type="text" and (contains(@placeholder, "Search") or contains(@placeholder, "Ara") or contains(@id, "search"))]'
@@ -216,20 +214,17 @@ def AutoSearch(car_info):
             search_box.clear()
             search_box.send_keys(search_term)
 
-            
             try:
                 submit = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//input[@type='submit']|//button[contains(., 'Search') or contains(., 'Ara')]|//span[contains(@class,'search')]")))
                 submit.click()
             except Exception:
                 search_box.send_keys('\n')
 
-            
             try:
                 WebDriverWait(driver, 6).until(EC.presence_of_element_located((By.XPATH, "//a[@href]") ))
             except Exception: pass
 
             links = _collect_result_links(driver, brand=car_info['brand'], model=model, max_links=100)
-            
             
             image_link_from_search = None
             try:
@@ -270,7 +265,6 @@ def AutoSearch(car_info):
         })
 
     return final_results
-
 
 
 def _extract_largest_table_text(driver):
@@ -328,7 +322,6 @@ def _extract_city_highway_from_full(full_text: str):
             if len(found) == 3:
                 return found
                 
-    
     if 'combined' not in found:
         for ln in lines:
             m = re.search(r"(\d+[\.,]?\d*)\s*l\s*/\s*100", ln.lower())
@@ -353,7 +346,7 @@ def arac_endpoint():
     if car_data is None:
         return jsonify({"error": "Geçersiz JSON formatı."}), 400
     if not car_data['models'] or car_data['models'] == [""]:
-             return jsonify({"error": "JSON gövdesinde 'models' anahtarı sağlanmalıdır."}), 400
+            return jsonify({"error": "JSON gövdesinde 'models' anahtarı sağlanmalıdır."}), 400
 
     try:
         search_results = AutoSearch(car_data)
@@ -365,8 +358,7 @@ def arac_endpoint():
         print(f"Hata oluştu: {e}") 
         return jsonify({"error": "Sunucu hatası: Arama sırasında bir sorun oluştu."}), 500
 
-# --- YENİ ENDPOINT: Detaylı Veri Çekme ---
-
+# --- GÜNCELLENEN ENDPOINT: Detaylı Veri Çekme (Satır Bazlı Yakıt Tespiti) ---
 @app.route('/arac/detay', methods=['GET'])
 def arac_detay_endpoint():
     
@@ -393,13 +385,23 @@ def arac_detay_endpoint():
         # 4. Çekiş Türünü Belirle ve Çevir
         drive_terms = _translate_drive_terms(full_table_text)
         
-        # 5. Yakıt Türünü Belirle (EKLENEN ÇAĞRI)
-        fuel_type_tr = _translate_fuel_type(full_table_text)
+        # 5. Yakıt Türünü Belirle (REVİZE EDİLDİ)
+        # Tüm tabloyu körü körüne taramak yerine, "Fuel Type" yazan satırı arıyoruz.
+        fuel_row_text = ""
+        if full_table_text:
+            for line in full_table_text.splitlines():
+                if "fuel type" in line.lower() or "yakıt" in line.lower():
+                    fuel_row_text = line
+                    break
+        
+        # Eğer satırı bulamazsa tüm metne bakar, bulursa sadece o satıra bakar.
+        text_to_analyze = fuel_row_text if fuel_row_text else full_table_text
+        fuel_type_tr = _translate_fuel_type(text_to_analyze)
 
         # Sonuç Yapısını Hazırla
         response_data = {
             "url": car_url,
-            "yakit_turu": fuel_type_tr, # Yeni Alan
+            "yakit_turu": fuel_type_tr,
             "fuel_consumption_l_per_100km": {
                 "Ortalama": fuel_consumption.get('combined'),
                 "Şehir İçi": fuel_consumption.get('city'),
