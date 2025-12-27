@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profesyonel Rota ve Yakıt Sistemi</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        body { margin: 0; font-family: 'Segoe UI', Roboto, sans-serif; overflow: hidden; background: #000; }
+        #map { height: 100vh; width: 100%; background: #0a0a0a; }
+
+        #loading {
+            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+            background: rgba(44, 62, 80, 0.95); color: white; padding: 12px 30px;
+            border-radius: 30px; display: none; z-index: 9999; 
+            font-weight: bold; box-shadow: 0 5px 20px rgba(0,0,0,0.6);
+            backdrop-filter: blur(5px); border: 1px solid #555;
+        }
+
+        .control-panel {
+            position: absolute; top: 80px; left: 20px; z-index: 1000;
+            background: rgba(255, 255, 255, 0.98);
+            padding: 20px; border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.4); width: 360px;
+            backdrop-filter: blur(10px);
+            max-height: 85vh; overflow-y: auto;
+        }
+
+        .panel-header h3 {
+            margin: 0 0 15px 0; color: #c0392b; text-align: center; font-size: 20px;
+        }
+
+        .input-group { position: relative; margin-bottom: 15px; }
+        .input-group i { position: absolute; left: 12px; top: 12px; color: #777; z-index: 2; }
+        
+        select, button, input[type="text"] { 
+            width: 100%; padding: 12px 12px 12px 40px; border-radius: 8px; border: 1px solid #ddd; box-sizing: border-box;
+            font-size: 14px; outline: none; transition: 0.3s;
+        }
+        input[type="text"]:focus { border-color: #3498db; box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2); }
+
+        button { background: #c0392b; color: white; border: none; font-weight: bold; cursor: pointer; transition: 0.3s; padding: 14px; }
+        button:hover { background: #e74c3c; transform: translateY(-2px); }
+
+        /* AUTOCOMPLETE STİLİ */
+        .autocomplete-items {
+            position: absolute; border: 1px solid #d4d4d4; border-bottom: none; border-top: none;
+            z-index: 9999; top: 100%; left: 0; right: 0;
+            border-radius: 0 0 10px 10px; overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        .autocomplete-item {
+            padding: 10px; cursor: pointer; background-color: #fff; 
+            border-bottom: 1px solid #d4d4d4; display: flex; align-items: center; gap: 10px;
+        }
+        .autocomplete-item:hover { background-color: #e9e9e9; }
+        .autocomplete-item i { position: static; color: #777; font-size: 16px; min-width: 20px; text-align: center; }
+        .place-info { display: flex; flex-direction: column; line-height: 1.2; }
+        .place-name { font-weight: bold; font-size: 13px; color: #333; }
+        .place-address { font-size: 11px; color: #888; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 280px; }
+
+        .route-option-card {
+            background: #fff; border: 1px solid #eee; 
+            padding: 12px; margin-bottom: 10px; border-radius: 8px;
+            cursor: pointer; transition: 0.2s; font-size: 13px; display: flex; justify-content: space-between; align-items: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        .route-option-card:hover { background: #f8f9fa; border-color: #bbb; }
+        .route-option-card.selected { background: #e3f2fd; border-color: #2196f3; border-left: 5px solid #2196f3; }
+        .route-cost-right { font-weight: bold; color: #27ae60; font-size: 15px; }
+
+        #modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.9); z-index: 10000; justify-content: center; align-items: center; }
+        #modal-content { background: #1a1a1a; width: 85%; height: 85%; border-radius: 12px; position: relative; overflow: hidden; border: 2px solid #444; }
+        #close-btn { position: absolute; top: 10px; right: 15px; font-size: 30px; color: white; background: #c0392b; width: 40px; height: 40px; text-align: center; line-height: 40px; border-radius: 50%; cursor: pointer; z-index: 10001; font-weight: bold; }
+        #maps-frame { width: 100%; height: 100%; border: none; }
+
+        .leaflet-routing-alt { display: none; } 
+        .route-glow { filter: drop-shadow(0 0 5px #3498db); pointer-events: none; }
+        .leaflet-popup-content-wrapper, .leaflet-popup-tip { background: #2c3e50; color: white; }
+        .leaflet-routing-container { display: none !important; }
+        
+        .custom-div-icon {
+            background: #ffffff; border-radius: 50%;
+            box-shadow: 0 0 10px rgba(0,0,0,0.8);
+            display: flex; align-items: center; justify-content: center;
+            border: 2px solid #fff;
+        }
+        .custom-div-icon img { width: 28px; height: 28px; object-fit: contain; border-radius: 50%; }
+        .popup-brand-name { font-size: 16px; font-weight: bold; margin-top: 5px; display: block; text-transform: uppercase; letter-spacing: 1px; }
+        .copy-box { background: #111; color: #0f0; font-family: monospace; padding: 5px; font-size: 11px; border: 1px solid #444; margin-bottom: 8px; word-break: break-all; user-select: all; }
+
+        /* Mobil sekmeler (desktop'ta gizli) */
+        .mobile-tabs {
+            display: none;
+            margin-bottom: 8px;
+            gap: 6px;
+        }
+        .mobile-tab-btn {
+            flex: 1;
+            padding: 6px 8px;
+            border-radius: 999px;
+            border: none;
+            background: #ecf0f1;
+            font-size: 12px;
+            font-weight: 600;
+            color: #555;
+        }
+        .mobile-tab-btn.active {
+            background: #c0392b;
+            color: #fff;
+        }
+        .mobile-route-section,
+        .mobile-prices-section {
+            width: 100%;
+        }
+
+        /* Mobilde panel aç/kapa butonu (desktop'ta gizli) */
+        #mobile-toggle-panel-btn {
+            display: none;
+        }
+
+        #detailed-station-list {
+            padding: 15px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-top: 20px;
+        }
+
+        /* --- MOBİL RESPONSIVE --- */
+        @media (max-width: 768px) {
+
+            body {
+                overflow: hidden;
+                background: #000;
+            }
+
+            #map {
+                height: 100vh;
+                width: 100%;
+            }
+
+            /* Panel BAŞLANGIÇTA GİZLİ */
+            .control-panel {
+                position: fixed;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                margin: 0;
+                width: 100%;
+                max-width: 100%;
+                border-radius: 18px 18px 0 0;
+                padding: 10px 14px 12px 14px;
+                box-shadow: 0 -6px 15px rgba(0,0,0,0.5);
+                max-height: 55vh;
+                overflow-y: auto;
+                transform: translateY(100%);      /* tamamen aşağıda */
+                transition: transform 0.25s ease;
+                z-index: 1100;
+            }
+
+            /* Sadece panel-open gelince görünür */
+            .control-panel.panel-open {
+                transform: translateY(0);
+            }
+
+            .mobile-tabs {
+                display: flex;
+            }
+
+            .control-panel.tab-route .mobile-route-section { display: block; }
+            .control-panel.tab-route .mobile-prices-section { display: none; }
+
+            .control-panel.tab-prices .mobile-route-section { display: none; }
+            .control-panel.tab-prices .mobile-prices-section { display: block; }
+
+            /* Sağ alttaki kırmızı menü butonu */
+            #mobile-toggle-panel-btn {
+                display: block;
+                position: fixed;
+                right: 14px;
+                bottom: 14px;
+                width: 48px;
+                height: 48px;
+                border-radius: 50%;
+                border: none;
+                background: #c0392b;
+                color: #fff;
+                font-size: 24px;
+                box-shadow: 0 6px 16px rgba(0,0,0,0.5);
+                z-index: 1200;
+            }
+
+            #detailed-station-list {
+                max-height: 48vh;
+                overflow-y: auto;
+            }
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="loading">🛰️ Sistem Çalışıyor...</div>
+
+    <div id="modal-overlay">
+        <div id="modal-content">
+            <div id="close-btn" onclick="closeModal()">×</div>
+            <iframe id="maps-frame" src=""></iframe>
+        </div>
+    </div>
+
+    <!-- ANA PANEL (Desktop + Mobil) -->
+    <div class="control-panel" id="main-control-panel">
+        <!-- Mobil sekmeler -->
+        <div class="mobile-tabs" id="mobile-tabs">
+            <button class="mobile-tab-btn active" data-tab="route">Rota</button>
+            <button class="mobile-tab-btn" data-tab="prices">Fiyatlar</button>
+        </div>
+
+        <!-- ROTA BÖLÜMÜ -->
+        <div id="mobile-route-section" class="mobile-route-section">
+            <div class="panel-header">
+                <h3><i class="fas fa-gas-pump"></i> Yakıt Asistanı</h3>
+            </div>
+            
+            <div class="input-group">
+                <i class="fas fa-car"></i>
+                <select id="carSelect">
+                    <option value="7.5" selected>Araç Seçiniz (Varsayılan 7.5L)</option>
+                    <option value="5.4">Fiat Egea 1.4 (5.4L)</option>
+                    <option value="6.5">Renault Megane 1.3 (6.5L)</option>
+                    <option value="7.2">Honda Civic 1.6 (7.2L)</option>
+                    <option value="4.5">Ford Focus Dizel (4.5L)</option>
+                    <option value="9.0">BMW 5.20i (9.0L)</option>
+                    <option value="12.0">Range Rover Sport (12.0L)</option>
+                </select>
+            </div>
+
+            <div class="input-group">
+                <i class="fas fa-map-marker-alt" style="color:green"></i>
+                <input type="text" id="startInput" placeholder="Nereden? (Örn: Kadıköy)" autocomplete="off">
+                <div id="startInput-list" class="autocomplete-items"></div>
+            </div>
+
+            <div class="input-group">
+                <i class="fas fa-flag-checkered" style="color:red"></i>
+                <input type="text" id="endInput" placeholder="Nereye? (Örn: Nişantaşı)" autocomplete="off">
+                <div id="endInput-list" class="autocomplete-items"></div>
+            </div>
+
+            <button class="search-btn" onclick="adresleriCozVeRotaCiz()">ROTAYI HESAPLA</button>
+            <div id="route-results-container" style="margin-top:15px;"></div>
+            
+            <button id="toggle-directions-btn" onclick="toggleDirections()" style="display:none; background:#555; margin-top:10px; font-size:12px; padding:8px;">
+                📝 Yol Tarifini Göster
+            </button>
+            <div id="directions-panel" style="display:none; margin-top:10px; max-height:200px; overflow-y:auto; background:#f9f9f9; padding:10px;"></div>
+        </div>
+
+        <!-- FİYAT BÖLÜMÜ (JS ile doldurulacak) -->
+        <div id="mobile-prices-panel" class="mobile-prices-section"></div>
+    </div>
+
+    <!-- Mobilde panel aç/kapa butonu -->
+    <button id="mobile-toggle-panel-btn">☰</button>
+
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+
+    <script>
+        // LOGO LİSTESİ (senin mevcut listen)
+        const MARKA_LOGOLARI = {
+            "shell": "https://upload.wikimedia.org/wikipedia/en/thumb/e/e8/Shell_logo.svg/200px-Shell_logo.svg.png",
+            "opet": "https://images.seeklogo.com/logo-png/10/1/opet-logo-png_seeklogo-103589.png", 
+            "petrol ofisi": "https://images.seeklogo.com/logo-png/19/1/petrol-ofisi-logo-png_seeklogo-197551.png",
+            "bp": "https://upload.wikimedia.org/wikipedia/en/thumb/d/d2/BP_Helios_logo.svg/200px-BP_Helios_logo.svg.png",
+            "total": "https://images.seeklogo.com/logo-png/14/1/total-logo-png_seeklogo-141201.png",
+            "aytemiz": "https://images.seeklogo.com/logo-png/51/1/aytemiz-petrol-logo-png_seeklogo-517734.png",
+            "tp": "https://images.seeklogo.com/logo-png/55/1/tp-turk-petrol-logo-png_seeklogo-552973.png",
+            "kadoil": "https://images.seeklogo.com/logo-png/33/1/kadoil-logo-png_seeklogo-338164.png",
+            "sunpet": "https://images.seeklogo.com/logo-png/17/1/sunpet-logo-png_seeklogo-170488.png",
+            "lukoil": "https://images.seeklogo.com/logo-png/52/1/lukoil-logo-png_seeklogo-526156.png",
+            "m-oil": "https://www.m-oil.com.tr/tema/genel/uploads/logo/logo.png",
+            "termopet": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT5M8FjhNe6hwRAP44aIl5p2C4a6fM2Zc0fIg&s",
+            "starpet": "https://www.haberekonomi.com.tr/resimler/upload/buyuk/6611749530.jpg",
+            "nanopet": "https://nanopet.yakitofisi.com/images/logos/nanopet.png",
+            "seypet": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQTqNxtHlDcj61gjw4N9KW-TzoFqCYv621Vbw&s",
+            "teco": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQSsyp8xglREUv1r7WxSk4fHDsMbgtveBmf7Rgxtu18Wqdafx2dNBajiu0IM0nzd-3E2rU&usqp=CAU",
+            "milangaz": "https://images.seeklogo.com/logo-png/49/1/milangaz-logo-png_seeklogo-490788.png",
+            "pacific": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT4Mu6oBYnHyBNSoVSTEhtA9kAEcWATn4bw3A&s",
+            "best": "https://images.seeklogo.com/logo-png/23/1/best-oil-logo-png_seeklogo-237492.png",
+            "sanoil": "https://pbs.twimg.com/profile_images/813297748309135360/EQ5dhTWa_400x400.jpg",
+            "7kita": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQuVtSJesgExAujDGSKixh0vF9HbOFxphs7tg&s",
+            "socar": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTfdtCpMRfZz_tELRH7VdBeU5KPjPVNiZJabQ&s",
+            "hypco": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRndTEI8-V86GoO62-Cn2s8-1Ap4lM0Lj4e4g&s",
+            "memoil": "https://cdn.tonzo.com.tr/logolar/memoil-1732543551.png",
+            "aston": "https://astonpetrolleri.com/images/aston_logo.jpg",
+            "soil": "https://pbs.twimg.com/profile_images/484221460618031104/b9w5Su9K_400x400.jpeg",
+            "class": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTrKN05D-GEuShIEh9ud6SU7DXGGUeiO6TG0g&s",
+            "go": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQc44y9gAhyW6mlO5prdvQQn5oQ02l7EaIBiw&s",
+            "alpet": "https://images.seeklogo.com/logo-png/0/1/alpet-logo-png_seeklogo-7118.png",
+            "moil": "https://images.seeklogo.com/logo-png/9/1/moil-logo-png_seeklogo-94151.png",
+            "liman": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTV8Z_-V_K-lAgz7kRgw_tQyK8qDGBQzXJ2rg&s",
+            "energy": "https://media.licdn.com/dms/image/v2/C4E0BAQHy2cSyibdntg/company-logo_200_200/company-logo_200_200/0/1634544513089/energy_petrol_logo?e=2147483647&v=beta&t=GGadgt0CNcWAAmpyGCs3d3NxuLBbQAXKKCg8PzSjYaU",
+            "long": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRBZsbsi9lt2nvpqzNnDr_WjR_gGlkG719r4A&s",
+            "maspet": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR-iJjOC_s3McAuwfOdcxkjUN-Ut7_LFk-b7w&s",
+            "toil": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR2eMf7oXq1L4jzqYohu83of185HOBYv0S2rw&s",
+            "aygaz": "https://kurumsal.aygaz.com.tr/uploads/kurumsal/logo/thumb/a0a46679_b7a7_49b4_b18c_10e04525afae__91d235c2_8bfb_40f4_a0ec_31ed3547a385__1ce476b2_2409_4eb5_9caa_7c8629485d70__thumb-aygaz-logo.png",
+            "diesel": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/Diesel.svg/1200px-Diesel.svg.png",
+            "hurgaz": "https://lh6.googleusercontent.com/proxy/ZOWhIuNZP6KB0EMfjE8gs4CznvQgBRm7QNA0EZx2Tn4BtxEMI75WJhNh59YNXH2UHixIqw1ZNw",
+            "qplus": "https://www.qplus.com.tr/bwp-content/themes/qplus/assets/img/noimage.png",
+            "mola": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQOlaVBPp2JfZ6gmnNKcDpmju1rM6x3x4DtQw&s",
+            "bpet": "https://images.seeklogo.com/logo-png/22/1/bpet-logo-png_seeklogo-223692.png",
+            "eses": "https://img-kariyer.mncdn.com/mnpadding/1200/630/FFFFFF/UploadFiles/Clients/SquareLogo/682/336682_298993.jpeg"
+        };
+        const FALLBACK_ICON = "https://cdn-icons-png.flaticon.com/512/3448/3448636.png";
+
+        const SILINECEK_KOORDINATLAR = ["40.1234,29.5678", "40.7286,31.4338", "40.7209,31.4532", "40.7212,31.4643", "40.7740,32.0419", "40.0851,32.6158", "40.0842,32.6163", "40.7428,31.8587", "38.4325,27.2133", "40.2266,29.0861", "38.7963,30.1134", "40.2447,28.4301", "37.5617,29.2830", "40.8014,32.2422", "40.7770,31.2966", "40.8892,35.6324"];
+        var KOORDINAT_DUZELTMELERI = {};
+        var stationsOnRouteData = [];
+
+        var map = L.map('map', {
+            maxBounds: [[35.0, 20.0], [43.0, 45.0]],
+            maxBoundsViscosity: 0.8,
+            minZoom: 6,
+            zoomControl: false
+        }).setView([39.92, 32.85], 7);
+
+        // 1. Uydu katmanı
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { 
+            attribution: 'Tiles © Esri' 
+        }).addTo(map);
+
+        // 2. Etiket katmanı
+        L.tileLayer('https://tiles.stadiamaps.com/tiles/stamen_toner_labels/{z}/{x}/{y}{r}.png', {
+            attribution: '© Stadia Maps, © OpenMapTiles, © OpenStreetMap contributors',
+            pane: 'overlayPane'
+        }).addTo(map);
+
+        L.polygon([[[90, -180], [90, 180], [-90, 180], [-90, -180]], [[35.0, 20.0], [35.0, 45.0], [43.0, 45.0], [43.0, 20.0]]], { 
+            color: 'transparent', fillColor: '#000', fillOpacity: 0.85, interactive: false 
+        }).addTo(map);
+
+        L.control.zoom({ position: 'topright' }).addTo(map);
+
+        var routingControl = L.Routing.control({
+            waypoints: [],
+            routeWhileDragging: false,
+            draggableWaypoints: false,
+            addWaypoints: false,
+            show: false,
+            showAlternatives: true,
+            fitSelectedRoutes: false,
+            lineOptions: { styles: [{color: 'transparent', opacity: 0}] },
+            altLineOptions: { styles: [{color: 'transparent', opacity: 0}] },
+            createMarker: function() { return null; } 
+        }).addTo(map);
+
+        var currentStationMarkers = [];
+        var currentRouteLine = null;
+        var foundRoutes = [];
+        var startMarker = null;
+        var endMarker = null;
+
+        // AUTOCOMPLETE
+        function setupAutocomplete(inputId, listId) {
+            const input = document.getElementById(inputId);
+            const list = document.getElementById(listId);
+            let debounceTimer;
+
+            input.addEventListener("input", function() {
+                const val = this.value;
+                if (!val || val.length < 3) {
+                    list.innerHTML = "";
+                    return;
+                }
+
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(() => {
+                    fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(val)}&countrycodes=tr&addressdetails=1&limit=5`)
+                        .then(res => res.json())
+                        .then(data => {
+                            list.innerHTML = "";
+                            data.forEach(item => {
+                                const div = document.createElement("div");
+                                div.className = "autocomplete-item";
+                                
+                                let iconClass = "fa-map-marker-alt";
+                                if(item.type === "hotel" || item.class === "tourism") iconClass = "fa-bed";
+                                else if(item.type === "park" || item.class === "leisure") iconClass = "fa-tree";
+                                else if(item.class === "amenity") iconClass = "fa-building";
+                                else if(item.class === "highway") iconClass = "fa-road";
+
+                                let parts = item.display_name.split(",");
+                                let mainName = parts[0];
+                                let subAddress = parts.slice(1).join(", ");
+
+                                div.innerHTML = `
+                                    <i class="fas ${iconClass}"></i>
+                                    <div class="place-info">
+                                        <span class="place-name">${mainName}</span>
+                                        <span class="place-address">${subAddress}</span>
+                                    </div>
+                                `;
+                                
+                                div.addEventListener("click", function() {
+                                    input.value = item.display_name;
+                                    list.innerHTML = "";
+                                });
+                                list.appendChild(div);
+                            });
+                        });
+                }, 400);
+            });
+
+            document.addEventListener("click", function(e) {
+                if (e.target !== input) {
+                    list.innerHTML = "";
+                }
+            });
+        }
+
+        setupAutocomplete("startInput", "startInput-list");
+        setupAutocomplete("endInput", "endInput-list");
+
+        async function adresleriCozVeRotaCiz() {
+            var startText = document.getElementById("startInput").value;
+            var endText = document.getElementById("endInput").value;
+
+            if(!startText || !endText) { alert("Lütfen konumları doldurun."); return; }
+
+            document.getElementById("loading").innerText = "🔍 Adresler Çözümleniyor...";
+            document.getElementById("loading").style.display = "block";
+            
+            document.getElementById("route-results-container").innerHTML = "";
+            document.getElementById("directions-panel").style.display = "none";
+            document.getElementById("toggle-directions-btn").style.display = "none";
+
+            try {
+                let startRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(startText)}&countrycodes=tr&limit=1`);
+                let startJson = await startRes.json();
+                if(startJson.length === 0) throw new Error("Başlangıç bulunamadı");
+                let startCoords = L.latLng(startJson[0].lat, startJson[0].lon);
+
+                let endRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(endText)}&countrycodes=tr&limit=1`);
+                let endJson = await endRes.json();
+                if(endJson.length === 0) throw new Error("Varış bulunamadı");
+                let endCoords = L.latLng(endJson[0].lat, endJson[0].lon);
+
+                if(startMarker) map.removeLayer(startMarker);
+                if(endMarker) map.removeLayer(endMarker);
+                startMarker = L.marker(startCoords).addTo(map).bindPopup("Başlangıç");
+                endMarker = L.marker(endCoords).addTo(map).bindPopup("Varış");
+
+                document.getElementById("loading").innerText = "🛰️ Rotalar Hesaplanıyor...";
+                currentStationMarkers.forEach(m => map.removeLayer(m));
+                currentStationMarkers = [];
+                if(currentRouteLine) map.removeLayer(currentRouteLine);
+
+                routingControl.setWaypoints([startCoords, endCoords]);
+
+            } catch (error) {
+                alert(error.message);
+                document.getElementById("loading").style.display = "none";
+            }
+        }
+
+        routingControl.on('routesfound', function(e) {
+            document.getElementById("loading").style.display = "none";
+            foundRoutes = e.routes;
+            var container = document.getElementById("route-results-container");
+            container.innerHTML = "<div style='color:#ccc; font-size:12px; margin-bottom:10px;'>Rota Seçiniz:</div>";
+
+            foundRoutes.forEach((route, index) => {
+                var km = (route.summary.totalDistance / 1000).toFixed(1);
+                var timeMin = Math.round(route.summary.totalTime / 60);
+                var saat = Math.floor(timeMin / 60);
+                var dk = timeMin % 60;
+                var fuelPrice = 43.50; 
+                var consumption = parseFloat(document.getElementById("carSelect").value); 
+                var cost = ((km / 100) * consumption * fuelPrice).toFixed(0);
+
+                var title = `Rota ${index + 1}`;
+                if(index === 0) title += " (Önerilen)";
+
+                var card = document.createElement("div");
+                card.className = "route-option-card";
+                card.innerHTML = `
+                    <div class="route-info-left">
+                        <span style="font-weight:bold; color:#333;">${title}</span>
+                        <span style="color:#666;">${km} km • ${saat}s ${dk}dk</span>
+                    </div>
+                    <div class="route-cost-right">${cost} TL</div>
+                `;
+                card.onclick = function() {
+                    document.querySelectorAll(".route-option-card").forEach(c => c.classList.remove("selected"));
+                    card.classList.add("selected");
+                    selectRoute(index);
+                };
+                container.appendChild(card);
+            });
+        });
+
+        function selectRoute(index) {
+            var selectedRoute = foundRoutes[index];
+            if(currentRouteLine) map.removeLayer(currentRouteLine);
+            var latlngs = selectedRoute.coordinates;
+            currentRouteLine = L.polyline(latlngs, { color: '#3498db', weight: 6, opacity: 1, className: 'route-glow' }).addTo(map);
+            map.fitBounds(currentRouteLine.getBounds(), {padding: [50, 50]});
+            fillDirections(selectedRoute);
+            
+            document.getElementById("loading").innerText = "⛽ İstasyonlar Taranıyor...";
+            document.getElementById("loading").style.display = "block";
+            currentStationMarkers.forEach(m => map.removeLayer(m));
+            currentStationMarkers = [];
+            
+            stationsOnRouteData = []; 
+            getStationsAlongRoute(selectedRoute.coordinates);
+        }
+
+        function fillDirections(route) {
+            var btn = document.getElementById("toggle-directions-btn");
+            var panel = document.getElementById("directions-panel");
+            btn.style.display = "block";
+            btn.innerText = "📝 Yol Tarifini Göster";
+            panel.style.display = "none";
+            var steps = route.instructions;
+            var html = "<table>";
+            steps.forEach((step, i) => {
+                var icon = '⏺️';
+                if(step.type.includes("Left")) icon = '⬅️';
+                if(step.type.includes("Right")) icon = '➡️';
+                if(step.type.includes("Straight")) icon = '⬆️';
+                html += `<tr><td style="width:20px">${icon}</td><td>${step.text}</td><td style="text-align:right; color:#777">${Math.round(step.distance)}m</td></tr>`;
+            });
+            html += "</table>";
+            panel.innerHTML = html;
+        }
+
+        function toggleDirections() {
+            var panel = document.getElementById("directions-panel");
+            var btn = document.getElementById("toggle-directions-btn");
+            if(panel.style.display === "none") { panel.style.display = "block"; btn.innerText = "📝 Tarifi Gizle"; } 
+            else { panel.style.display = "none"; btn.innerText = "📝 Yol Tarifini Göster"; }
+        }
+
+        async function getStationsAlongRoute(coords) {
+            var samplePoints = [];
+            for (var i = 0; i < coords.length; i += 100) { 
+                samplePoints.push(coords[i]);
+            }
+
+            var query = '[out:json][timeout:25];(';
+            samplePoints.forEach(pt => {
+                query += `nwr["amenity"="fuel"](around:1000,${pt.lat},${pt.lng});`;
+            });
+            query += ');out center;';
+            
+            stationsOnRouteData = [];
+
+            try {
+                const response = await fetch("https://overpass-api.de/api/interpreter", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                    body: "data=" + encodeURIComponent(query)
+                });
+                
+                if (!response.ok) { throw new Error(`API Hatası: ${response.status} ${response.statusText}`); }
+                const data = await response.json();
+
+                if (!data || !data.elements || data.elements.length === 0) {
+                    console.warn("Rota üzerinde yakıt istasyonu bulunamadı.");
+                    document.getElementById("loading").style.display = "none";
+                    return;
+                }
+                
+                const rawStations = [];
+                data.elements.forEach(istasyon => {
+                    const dataPoint = createStationMarker(istasyon);
+                    if(dataPoint) {
+                        rawStations.push(dataPoint);
+                    }
+                });
+
+                document.getElementById("loading").innerText = "📍 Yerleşim Yerleri Çözümleniyor...";
+                
+                for (const station of rawStations) {
+                    const reverseGeocodeUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${station.lat}&lon=${station.lon}&addressdetails=1`;
+                    try {
+                        const res = await fetch(reverseGeocodeUrl);
+                        const addrData = await res.json();
+                        const addr = addrData.address;
+
+                        const il = addr.province || addr.city || "Bilinmiyor";
+                        const ilce = addr.town || addr.district || addr.county || addr.suburb || addr.city_district || "Merkez";
+                        
+                        stationsOnRouteData.push({ 
+                            name: station.name,
+                            il: il,
+                            ilce: ilce,
+                            lat: station.lat,
+                            lon: station.lon
+                        });
+
+                    } catch (e) {
+                        stationsOnRouteData.push({ 
+                            name: station.name,
+                            il: "Bilinmiyor",
+                            ilce: "Bilinmiyor",
+                            lat: station.lat,
+                            lon: station.lon
+                        });
+                    }
+                }
+                
+                document.getElementById("loading").style.display = "none";
+
+                console.log("-----------------------------------------");
+                console.log(`⛽ Rota İstasyon Listesi (${stationsOnRouteData.length} istasyon bulundu):`);
+                console.log("-----------------------------------------");
+                stationsOnRouteData.forEach((station, index) => {
+                    console.log(`[${index + 1}] İl: ${station.il}, İlçe: ${station.ilce} | Firma: ${station.name}`);
+                });
+
+            } catch (err) {
+                console.error("Veri çekme/çözümleme hatası:", err);
+                document.getElementById("loading").style.display = "none";
+                alert("İstasyon verileri çekilirken hata oluştu. Lütfen tekrar deneyin.");
+            }
+
+            if (window.fetchStationPricesForRoute && stationsOnRouteData.length > 0) {
+                window.fetchStationPricesForRoute(
+                    stationsOnRouteData.map(st => ({
+                        Firma: st.name,
+                        İl: st.il,
+                        İlçe: st.ilce
+                    })),
+                    window.fuelType || "benzin"
+                );
+            } 
+        }
+
+        function getBrandData(tags) {
+            let rawText = [
+                tags.name, 
+                tags.brand, 
+                tags.operator, 
+                tags.network, 
+                tags['brand:en'], 
+                tags['name:en']
+            ].join(" ").toLowerCase();
+
+            const junkWords = ["petrolleri", "petrol", "istasyonu", "akaryakıt", "a.ş.", "ltd.", "şti.", "ticaret", "bayii", "dealer", "gas", "station"];
+            junkWords.forEach(word => {
+                rawText = rawText.replace(new RegExp(word, "g"), ""); 
+            });
+
+            let detectedKey = "unknown";
+            let displayName = "YEREL İSTASYON";
+
+            const brands = Object.keys(MARKA_LOGOLARI);
+            for (let i = 0; i < brands.length; i++) {
+                let brandKey = brands[i];
+                
+                if (brandKey === "tp") {
+                    if (rawText.includes("türkiye") || /\btp\b/.test(rawText)) { detectedKey = "tp"; break; }
+                } 
+                else if (brandKey === "petrol ofisi") {
+                    if (rawText.includes("petrol ofisi") || /\bpo\b/.test(rawText)) { detectedKey = "petrol ofisi"; break; }
+                }
+                else if (brandKey === "go") {
+                    if (/\bgo\b/.test(rawText)) { detectedKey = "go"; break; }
+                }
+                else {
+                    if (rawText.includes(brandKey)) {
+                        detectedKey = brandKey;
+                        break;
+                    }
+                }
+            }
+
+            if (detectedKey === "unknown" && tags.name) {
+                displayName = tags.name.replace(/Petrolleri|Petrol|İstasyonu|Akaryakıt|Bayii/gi, "").trim();
+                const checkName = displayName.toLocaleUpperCase('tr-TR');
+
+                if (checkName.includes("OFİS") || checkName === "OFİSİ" || checkName === "OFISI" || checkName === "OFİS" || checkName === "OFIS") {
+                    detectedKey = "petrol ofisi"; 
+                } 
+                else if (checkName === "TÜRKİYE LERI" || checkName === "TÜRKİYE LERİ" || checkName === "TÜRKİYE") {
+                    detectedKey = "tp";
+                }
+                else if (checkName == "TERMO") {
+                    detectedKey = "termopet";
+                }
+                else if (displayName.length < 3) {
+                    displayName = "YEREL İSTASYON";
+                }
+            }
+
+            let logo = MARKA_LOGOLARI[detectedKey] || FALLBACK_ICON;
+            
+            if (detectedKey !== "unknown") {
+                displayName = detectedKey.toUpperCase();
+                if(detectedKey === "petrol ofisi") displayName = "PETROL OFİSİ";
+                if(detectedKey === "tp") displayName = "TÜRKİYE PETROLLERİ";
+                if(detectedKey === "liman") displayName = "LİMAN PETROL";
+                if(detectedKey === "m-oil" || detectedKey === "moil") displayName = "M-OIL";
+                if(detectedKey === "7kita") displayName = "7 KITA";
+            }
+
+            return { name: displayName, logo: logo };
+        }
+
+        function createStationMarker(istasyon) {
+            var lat = istasyon.lat || (istasyon.center ? istasyon.center.lat : null);
+            var lon = istasyon.lon || (istasyon.center ? istasyon.center.lon : null);
+            
+            if (!lat || !lon) return null;
+
+            let coordKey = lat.toFixed(4) + "," + lon.toFixed(4);
+            if (SILINECEK_KOORDINATLAR.includes(coordKey)) return null; 
+
+            let manualFix = KOORDINAT_DUZELTMELERI[coordKey];
+            let brandData;
+            
+            if (manualFix) {
+                let fixKey = manualFix.brand;
+                let fixLogo = MARKA_LOGOLARI[fixKey] || FALLBACK_ICON;
+                let fixName = fixKey.toUpperCase();
+                if(fixKey === "petrol ofisi") fixName = "PETROL OFİSİ";
+                brandData = { name: fixName, logo: fixLogo };
+            } else {
+                brandData = getBrandData(istasyon.tags || {});
+            }
+
+            var markerIcon = L.divIcon({
+                className: 'custom-div-icon',
+                html: `<img src="${brandData.logo}" onerror="this.onerror=null;this.src='${FALLBACK_ICON}';">`,
+                iconSize: [36, 36],
+                iconAnchor: [18, 18]
+            });
+
+            var marker = L.marker([lat, lon], {icon: markerIcon}).addTo(map);
+            
+            var popupContent = `
+                <div style="text-align:center">
+                    <img src="${brandData.logo}" onerror="this.src='${FALLBACK_ICON}'" style="height:40px; object-fit:contain; margin-bottom:5px;"><br>
+                    <span class="popup-brand-name">${brandData.name}</span>
+                    <hr style="border-color:#555; margin:8px 0;">
+                    <div style="font-size:10px; color:#aaa; margin-bottom:5px;">Düzenleme Kodu:</div>
+                    <div class="copy-box">${coordKey}</div>
+                    <button onclick="openModal(${lat}, ${lon})" style="background:#3498db; color:white; padding:6px 12px; border:none; border-radius:4px; font-size:12px; font-weight:bold; cursor:pointer;">
+                        🛰️ İncele
+                    </button>
+                </div>
+            `;
+            marker.bindPopup(popupContent);
+            currentStationMarkers.push(marker);
+            
+            return {
+                name: brandData.name,
+                lat: lat,
+                lon: lon,
+                coordKey: coordKey
+            };
+        }
+
+        function openModal(lat, lon) {
+            var embedUrl = `https://maps.google.com/maps?q=${lat},${lon}&t=k&z=19&ie=UTF8&iwloc=&output=embed`;
+            document.getElementById("maps-frame").src = embedUrl;
+            document.getElementById("modal-overlay").style.display = "flex";
+        }
+
+        function closeModal() {
+            document.getElementById("modal-overlay").style.display = "none";
+            document.getElementById("maps-frame").src = "";
+        }
+
+    <!-- Mobil panel aç/kapa ve sekme kontrolü -->
+    document.addEventListener("DOMContentLoaded", function() {
+        var panel = document.getElementById("main-control-panel");
+        var toggleBtn = document.getElementById("mobile-toggle-panel-btn");
+        var tabButtons = document.querySelectorAll(".mobile-tab-btn");
+
+        if (!panel || !toggleBtn) return;
+
+        // Varsayılan sekme: Rota
+        panel.classList.add("tab-route");
+
+        // Panel aç/kapa
+        toggleBtn.addEventListener("click", function() {
+            panel.classList.toggle("panel-open");
+        });
+
+        // Sekme geçişleri
+        tabButtons.forEach(function(btn) {
+            btn.addEventListener("click", function() {
+                tabButtons.forEach(function(b) { b.classList.remove("active"); });
+                btn.classList.add("active");
+
+                var tab = btn.getAttribute("data-tab");
+                if (tab === "prices") {
+                    panel.classList.remove("tab-route");
+                    panel.classList.add("tab-prices");
+                } else {
+                    panel.classList.remove("tab-prices");
+                    panel.classList.add("tab-route");
+                }
+            });
+        });
+    });
+    </script>
+</body>
+</html>
