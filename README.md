@@ -5,7 +5,7 @@
 ![Gradio](https://img.shields.io/badge/Gradio-UI-orange)
 ![License](https://img.shields.io/badge/License-MIT-lightgrey)
 
-**CARORİ** (Cost Analysis based on Route, vehicle mOdel, and Real-time Information) is a web-based decision support system designed to estimate travel costs with high accuracy. Unlike traditional navigation apps that only provide distance and time, CARORİ integrates **vehicle-specific factory data** and **real-time fuel station prices** along the route.
+**CARORİ** (Cost Analysis based on Route, vehicle model, and Real-time Information) is a web-based decision support system designed to estimate travel costs with high accuracy. Unlike traditional navigation apps that only provide distance and time, CARORİ integrates **vehicle-specific factory data** and **real-time fuel station prices** along the route.
 
 ## 📖 Abstract
 
@@ -84,3 +84,4 @@ The system employs a **Hybrid Scraping** approach to solve performance bottlenec
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
