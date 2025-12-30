@@ -73,15 +73,16 @@ The system employs a **Hybrid Scraping** approach to solve performance bottlenec
 
 ## 👥 Authors
 
-* **Hakan SEVER**
-* **Özgür ALTUNKAYNAK**
-* **Muhammed İkbal YILDIZ**
-* **MHD Mahdi KOCHHA**
-* **Ali HAMDEMİRCİ**
+* **Hakan SEVER** (Developed API for fetching car informations)
+* **Özgür ALTUNKAYNAK** (Integrated OpenStreetMap to the project)
+* **Muhammed İkbal YILDIZ** (Developed API for fetching fuel price information)
+* **MHD Mahdi KOCHHA** (Developed web server of the project)
+* **Ali HAMDEMİRCİ** (Developed graphical processes)
 
 *Department of Computer Technology and Information Systems, Trakya University, Edirne, Turkey.*
 
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
 
